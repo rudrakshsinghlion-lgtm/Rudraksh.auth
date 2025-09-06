@@ -1,0 +1,633 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Rudraksh Auth — Sign In / Sign Up</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Google Identity Services (kept as requested) -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+  <style>
+    :root{
+      --accent:#0f172a;
+      --danger:#b91c1c;
+      --bank:#0b74ff;
+      --terminal-bg:#020204;
+      --terminal-green:#00ff6a;
+    }
+    body { -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial; background:linear-gradient(180deg,#0b1220 0%, #071027 100%); min-height:100vh; color:#e6eef8; }
+    .glass { background: rgba(255,255,255,0.06); backdrop-filter: blur(12px); border-radius:1rem; box-shadow: 0 8px 40px rgba(2,6,23,0.7); padding:1.5rem; }
+
+    /* Prank overlays full-screen */
+    .overlay { position: fixed; inset:0; display:flex; align-items:center; justify-content:center; z-index:60; }
+    .hidden { display:none !important; }
+
+    /* BANK SCREEN */
+    #bankScreen { background: linear-gradient(180deg,#07132a,#021024); color:#dbeafe; flex-direction:column; gap:18px; padding:24px; }
+    .bank-card { width:92%; max-width:920px; background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); border-radius:12px; padding:28px; box-shadow:0 10px 40px rgba(2,6,23,0.6); }
+    .bank-header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; }
+    .bank-logo { display:flex; gap:12px; align-items:center; }
+    .bank-logo .dot { width:44px;height:44px;border-radius:8px;background:var(--bank);display:flex;align-items:center;justify-content:center;font-weight:700;color:white;font-size:18px; }
+    .progress { width:100%; height:12px; background:rgba(255,255,255,0.06); border-radius:999px; overflow:hidden; }
+    .progress > i { display:block; height:100%; width:0%; background: linear-gradient(90deg, rgba(11,116,255,0.9), rgba(0,200,255,0.6)); transition:width 600ms linear; }
+
+    .bank-steps { background: rgba(0,0,0,0.15); padding:12px; border-radius:8px; font-family:monospace; font-size:13px; color:#dbeafe; max-height:160px; overflow:auto; }
+
+    /* WARNING SCREEN */
+    #warningScreen { flex-direction:column; background: linear-gradient(180deg, rgba(185,28,28,0.95), rgba(139,0,0,0.95)); color:white; text-align:center; padding:28px; gap:16px; }
+    .warning-title { font-size:clamp(22px,5vw,42px); font-weight:800; text-transform:uppercase; letter-spacing:1px; }
+    .warning-count { font-family:monospace; font-size:36px; font-weight:800; }
+
+    .flash { animation: flash 0.9s steps(2) infinite; }
+    @keyframes flash { 0% { opacity:1 } 50% { opacity:0.25 } 100% { opacity:1 } }
+
+    /* RESTART SCREEN */
+    #restartScreen { background:black; color:white; flex-direction:column; gap:18px; }
+    .reboot-logo { width:110px; height:110px; border-radius:22px; background:linear-gradient(135deg,#111827,#0f172a); display:flex; align-items:center; justify-content:center; font-size:34px; font-weight:800; }
+    .spinner { width:80px; height:80px; border-radius:999px; border:6px solid rgba(255,255,255,0.08); border-top-color:rgba(255,255,255,0.7); animation:spin 1.4s linear infinite; margin-top:8px; }
+    @keyframes spin { to { transform:rotate(360deg);} }
+
+    /* TERMINAL SCREEN */
+    #terminalScreen { background: var(--terminal-bg); color:var(--terminal-green); font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace; flex-direction:row; padding:20px; align-items:flex-start; }
+    .terminal-window { width:92%; max-width:1200px; height:72vh; background:#000; border-radius:8px; overflow:auto; box-shadow: 0 10px 40px rgba(0,0,0,0.8); padding:16px; }
+    .terminal-line { white-space:pre-wrap; font-size:13px; line-height:1.35em; }
+
+    /* small UI touches */
+    button:disabled { opacity:0.5; cursor:not-allowed; }
+    .btn { cursor:pointer; border-radius:10px; padding:8px 14px; font-weight:600; }
+  </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-6">
+
+  <!-- MAIN AUTH (keeps your original UI) -->
+  <div id="mainApp" class="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 gap-8">
+    <!-- Branding / Info -->
+    <section class="glass rounded-2xl shadow-2xl p-8 md:p-10">
+      <div class="flex items-center gap-3">
+        <div class="h-11 w-11 rounded-2xl bg-white text-black flex items-center justify-center font-bold">R</div>
+        <h1 class="text-2xl md:text-3xl font-extrabold tracking-tight text-white">Rudraksh Auth</h1>
+      </div>
+
+      <p class="mt-4 text-sm md:text-base text-gray-300 leading-relaxed">
+        Modern starter with Sign In, Sign Up, and Google Sign-In. If the Google-signed email is
+        <span class="font-semibold">rudrakshsinghlion@gmail.com</span> the page will redirect to WhatsApp.
+      </p>
+
+      <ul class="mt-6 space-y-3 text-gray-300 text-sm md:text-base">
+        <li class="flex items-start gap-2"><span class="mt-1.5 h-2 w-2 rounded-full bg-white"></span> Responsive glass UI</li>
+        <li class="flex items-start gap-2"><span class="mt-1.5 h-2 w-2 rounded-full bg-white"></span> Google Identity Services integration</li>
+        <li class="flex items-start gap-2"><span class="mt-1.5 h-2 w-2 rounded-full bg-white"></span> Client-side demo logic</li>
+      </ul>
+
+      <div class="mt-8 text-xs text-gray-400">
+        <p><strong>Note:</strong> Replace <code>YOUR_GOOGLE_CLIENT_ID</code> below with your Google Client ID.</p>
+        <p>Google Sign-In requires HTTPS (or <code>http://localhost</code> during development).</p>
+      </div>
+    </section>
+
+    <!-- Auth Card -->
+    <section class="glass rounded-2xl shadow-2xl p-8 md:p-10">
+      <div class="flex gap-1 mb-6">
+        <button id="tab-signin" class="px-4 py-2 rounded-xl text-sm font-semibold bg-white text-black">Sign In</button>
+        <button id="tab-signup" class="px-4 py-2 rounded-xl text-sm font-semibold">Sign Up</button>
+      </div>
+
+      <!-- Sign In Form -->
+      <form id="form-signin" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium mb-1 text-gray-200">Email</label>
+          <input type="email" required class="w-full rounded-xl border border-gray-700 p-3 outline-none bg-transparent text-white" placeholder="you@example.com">
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1 text-gray-200">Password</label>
+          <input type="password" required class="w-full rounded-xl border border-gray-700 p-3 outline-none bg-transparent text-white" placeholder="••••••••">
+        </div>
+        <div class="flex items-center justify-between text-gray-300">
+          <label class="flex items-center gap-2 text-sm">
+            <input type="checkbox" class="rounded"> Remember me
+          </label>
+          <a href="#" class="text-sm underline">Forgot password?</a>
+        </div>
+        <button id="signinBtn" type="submit" class="w-full rounded-xl bg-white text-black p-3 font-semibold shadow">Sign In</button>
+      </form>
+
+      <!-- Sign Up Form -->
+      <form id="form-signup" class="space-y-4 hidden mt-2">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium mb-1 text-gray-200">Full Name</label>
+            <input type="text" required class="w-full rounded-xl border border-gray-700 p-3 outline-none bg-transparent text-white" placeholder="Your name">
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1 text-gray-200">Username</label>
+            <input type="text" required class="w-full rounded-xl border border-gray-700 p-3 outline-none bg-transparent text-white" placeholder="username">
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1 text-gray-200">Email</label>
+          <input type="email" required class="w-full rounded-xl border border-gray-700 p-3 outline-none bg-transparent text-white" placeholder="you@example.com">
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1 text-gray-200">Password</label>
+          <input type="password" required class="w-full rounded-xl border border-gray-700 p-3 outline-none bg-transparent text-white" placeholder="Create a strong password">
+        </div>
+        <button type="submit" class="w-full rounded-xl bg-white text-black p-3 font-semibold shadow">Create Account</button>
+      </form>
+
+      <!-- Divider -->
+      <div class="flex items-center my-6">
+        <div class="flex-1 h-px bg-gray-700"></div>
+        <span class="px-3 text-xs uppercase tracking-wider text-gray-400">or</span>
+        <div class="flex-1 h-px bg-gray-700"></div>
+      </div>
+
+      <!-- Google Sign-In (kept) -->
+      <div id="g_id_onload"
+           data-client_id="YOUR_GOOGLE_CLIENT_ID"
+           data-context="signin"
+           data-ux_mode="popup"
+           data-callback="handleGoogleCredential"
+           data-auto_select="false">
+      </div>
+
+      <div class="g_id_signin"
+           data-type="standard"
+           data-shape="rectangular"
+           data-theme="outline"
+           data-text="signin_with"
+           data-size="large"
+           data-logo_alignment="left"
+           data-width="320">
+      </div>
+
+      <p class="mt-6 text-xs text-gray-400">
+        This is a front-end demo only — replace the client ID and wire a backend to handle passwords and sessions.
+      </p>
+
+      <!-- Buy Premium (triggers the realistic prank sequence) -->
+      <div class="mt-6">
+        <button id="buyPremium" class="btn bg-amber-500 text-black w-full rounded-xl px-4 py-3">💎 Buy Premium</button>
+      </div>
+    </section>
+  </div>
+
+  <!-- PRANK OVERLAYS (start hidden) -->
+  <!-- 1) Bank transfer screen -->
+  <div id="bankScreen" class="overlay hidden">
+    <div class="bank-card">
+      <div class="bank-header">
+        <div class="bank-logo">
+          <div class="dot">RB</div>
+          <div>
+            <div style="font-weight:700;">Rudraksh Bank</div>
+            <div style="font-size:12px;color:rgba(255,255,255,0.6)">Secure payments • UPI • Netbanking</div>
+          </div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:14px;color:rgba(255,255,255,0.7)">Available Balance</div>
+          <div style="font-weight:800;font-size:20px">₹ 42,350.00</div>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;">
+        <div style="flex:1">
+          <div style="font-size:13px;color:rgba(255,255,255,0.8); margin-bottom:8px;">Initiating transfer</div>
+          <div style="font-weight:800;font-size:28px;">₹ 9,999.00 → A/C •••• 8742</div>
+          <div style="margin-top:12px;" class="progress"><i id="bankProgressBar"></i></div>
+        </div>
+        <div style="width:260px;">
+          <div style="font-size:12px;color:rgba(255,255,255,0.7); margin-bottom:8px;">Status</div>
+          <div id="bankStepList" class="bank-steps"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2) System Warning Screen -->
+  <div id="warningScreen" class="overlay hidden">
+    <div style="max-width:900px; text-align:center;">
+      <div class="warning-title flash">⚠️ UNAUTHORIZED TRANSACTION DETECTED</div>
+      <div style="margin-top:18px;font-size:18px;font-weight:700;">Immediate action required — device integrity compromised</div>
+      <div style="margin-top:22px;">
+        <div style="font-size:12px;color:rgba(255,255,255,0.85);">Auto-lock in</div>
+        <div id="warningCounter" class="warning-count">10</div>
+      </div>
+      <div style="margin-top:18px;color:rgba(255,255,255,0.9);">
+        Attempting emergency rollback and device quarantine...
+      </div>
+    </div>
+  </div>
+
+  <!-- 3) Restart Screen -->
+  <div id="restartScreen" class="overlay hidden">
+    <div style="text-align:center;">
+      <div class="reboot-logo">R</div>
+      <div style="margin-top:12px;font-weight:700;">Restarting device...</div>
+      <div class="spinner" style="margin:18px auto 8px;"></div>
+      <div style="font-size:13px;color:rgba(255,255,255,0.75)">Applying system quarantine — please wait</div>
+    </div>
+  </div>
+
+  <!-- 4) Terminal / Hacker Screen -->
+  <div id="terminalScreen" class="overlay hidden">
+    <div class="terminal-window" id="terminalWindow" tabindex="0">
+      <div class="terminal-line" id="terminalContent"></div>
+    </div>
+  </div>
+
+  <script>
+    /* ----------------------------
+       Audio helpers using WebAudio
+       ---------------------------- */
+    let audioCtx = null;
+    function ensureAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      return audioCtx;
+    }
+
+    // short beep (type/notify)
+    function beep(freq=800, time=0.08, vol=0.05, type='sine') {
+      const ctx = ensureAudio();
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = type;
+      o.frequency.value = freq;
+      g.gain.value = vol;
+      o.connect(g); g.connect(ctx.destination);
+      o.start();
+      g.gain.setValueAtTime(vol, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + time);
+      o.stop(ctx.currentTime + time + 0.02);
+    }
+
+    // siren for warning screen
+    function playSiren(duration = 9000) {
+      const ctx = ensureAudio();
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = 'sine';
+      o.frequency.value = 600;
+      g.gain.value = 0.0001;
+      o.connect(g); g.connect(ctx.destination);
+      o.start();
+
+      // ramp volume up quickly
+      g.gain.exponentialRampToValueAtTime(0.16, ctx.currentTime + 0.03);
+
+      // modulate frequency periodically to simulate siren
+      let t0 = ctx.currentTime;
+      let steps = 60;
+      for (let i = 0; i < steps; i++) {
+        // create alternating up/down sweep every 0.15s
+        let offset = i * (duration / steps) / 1000;
+        let freq = 500 + Math.sin(i * 0.6) * 500;
+        o.frequency.linearRampToValueAtTime(freq, t0 + offset);
+      }
+
+      // fade out
+      setTimeout(() => {
+        g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.6);
+        setTimeout(()=>o.stop(), 700);
+      }, duration);
+    }
+
+    // power-down sweep
+    function playPowerDown() {
+      const ctx = ensureAudio();
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = 'sine';
+      o.frequency.value = 600;
+      g.gain.value = 0.0002;
+      o.connect(g); g.connect(ctx.destination);
+      o.start();
+      // downward sweep
+      o.frequency.linearRampToValueAtTime(80, ctx.currentTime + 1.6);
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 1.6);
+      setTimeout(()=>o.stop(), 1700);
+    }
+
+    // ambient hacker hum (looped subtle)
+    let ambientOsc = null;
+    function startAmbient() {
+      const ctx = ensureAudio();
+      ambientOsc = ctx.createOscillator();
+      const g = ctx.createGain();
+      ambientOsc.type = 'sine';
+      ambientOsc.frequency.value = 120;
+      g.gain.value = 0.02;
+      ambientOsc.connect(g); g.connect(ctx.destination);
+      ambientOsc.start();
+      // slight slow LFO for movement
+      let lfo = ctx.createOscillator();
+      lfo.frequency.value = 0.1;
+      let lfoGain = ctx.createGain();
+      lfoGain.gain.value = 30;
+      lfo.connect(lfoGain);
+      lfoGain.connect(ambientOsc.frequency);
+      lfo.start();
+    }
+    function stopAmbient() {
+      if (!ambientOsc) return;
+      try { ambientOsc.stop(); } catch(e){}
+      ambientOsc = null;
+    }
+
+    /* ------------------------------------------------
+       DOM references & sequence orchestration (async)
+       ------------------------------------------------ */
+    const buyPremiumBtn = document.getElementById('buyPremium');
+    const bankScreen = document.getElementById('bankScreen');
+    const bankProgressBar = document.getElementById('bankProgressBar');
+    const bankStepList = document.getElementById('bankStepList');
+    const warningScreen = document.getElementById('warningScreen');
+    const warningCounter = document.getElementById('warningCounter');
+    const restartScreen = document.getElementById('restartScreen');
+    const terminalScreen = document.getElementById('terminalScreen');
+    const terminalContent = document.getElementById('terminalContent');
+
+    // utility: sleep ms
+    const wait = ms => new Promise(res => setTimeout(res, ms));
+
+    buyPremiumBtn.addEventListener('click', async (e) => {
+      // create audio context on first gesture
+      ensureAudio();
+
+      // disable UI while prank runs
+      buyPremiumBtn.disabled = true;
+      document.querySelectorAll('input, button').forEach(el => { if (el !== buyPremiumBtn) el.disabled = true; });
+
+      try {
+        await runBankSequence();
+        await runWarningSequence();
+        await runRestartSequence();
+        await runTerminalSequence();
+        // keep terminal running (final realistic stage) - after it's done we re-enable UI
+      } catch (err) {
+        console.error('Prank sequence error', err);
+      } finally {
+        // after a delay, re-enable main UI so you can interact again if desired
+        await wait(6000);
+        hideAllOverlays();
+        buyPremiumBtn.disabled = false;
+        document.querySelectorAll('input, button').forEach(el => { el.disabled = false; });
+        stopAmbient();
+      }
+    });
+
+    function hideAllOverlays(){
+      [bankScreen, warningScreen, restartScreen, terminalScreen].forEach(el => el.classList.add('hidden'));
+    }
+
+    /* --------------------------
+       1) Bank transfer sequence
+       -------------------------- */
+    async function runBankSequence(){
+      bankStepList.textContent = ''; bankProgressBar.style.width = '0%';
+      bankScreen.classList.remove('hidden');
+
+      const steps = [
+        { text: 'Connecting to gateway...', delay: 900 },
+        { text: 'TLS handshake complete', delay: 700 },
+        { text: 'Authenticating user...', delay: 900 },
+        { text: 'Checking saved payees...', delay: 700 },
+        { text: 'Initiating transfer: ₹9,999 → A/C •••• 8742', delay: 1200 },
+        { text: 'Requesting OTP...', delay: 900 },
+        { text: 'OTP verified (auto-confirm)', delay: 800 },
+        { text: 'Processing transfer...', delay: 1600 }
+      ];
+
+      let total = steps.reduce((s,st)=>s+st.delay,0);
+      let elapsed = 0;
+
+      for (let i=0;i<steps.length;i++){
+        const st = steps[i];
+        appendBankLine('> ' + st.text);
+        // gently increase progress relative to total time
+        elapsed += st.delay;
+        let pct = Math.min(99, Math.round((elapsed/total)*90) + i);
+        bankProgressBar.style.width = pct + '%';
+        // play subtle ticks
+        beep(1200 - i*20, 0.06, 0.03, 'square');
+        await wait(st.delay);
+      }
+
+      // finalizing (simulate transfer finalization)
+      bankProgressBar.style.width = '98%';
+      appendBankLine('> Finalizing transaction with bank clearing house...');
+      await wait(900);
+      bankProgressBar.style.width = '100%';
+      // transfer completed sound - two chimes
+      beep(1200, 0.06, 0.07); await wait(140);
+      beep(1600, 0.06, 0.07); await wait(140);
+
+      appendBankLine('> Transfer complete. Reference: TXN' + ('' + Math.floor(Math.random()*9e6)).padStart(7,'0'));
+      await wait(900);
+
+      // small pause so user absorbs it then hide
+      await wait(600);
+      bankScreen.classList.add('hidden');
+    }
+
+    function appendBankLine(txt){
+      const node = document.createElement('div');
+      node.textContent = txt;
+      bankStepList.appendChild(node);
+      bankStepList.scrollTop = bankStepList.scrollHeight;
+    }
+
+    /* --------------------------
+       2) Warning sequence
+       -------------------------- */
+    async function runWarningSequence(){
+      warningScreen.classList.remove('hidden');
+      // play rising siren for countdown duration
+      const countdown = 9; // seconds
+      playSiren(countdown * 1000);
+      for (let i=countdown;i>=0;i--){
+        warningCounter.textContent = i;
+        // faster blink when closer to 0
+        if (i <= 3) document.querySelector('.warning-title').classList.add('flash');
+        await wait(1000);
+      }
+      // brief hold
+      await wait(600);
+      warningScreen.classList.add('hidden');
+    }
+
+    /* --------------------------
+       3) Restart sequence
+       -------------------------- */
+    async function runRestartSequence(){
+      restartScreen.classList.remove('hidden');
+      // small power-down sound
+      playPowerDown();
+      await wait(1600);
+      // small pause like a real reboot UI
+      await wait(2000);
+      restartScreen.classList.add('hidden');
+    }
+
+    /* --------------------------
+       4) Terminal / hacker screen
+       -------------------------- */
+    async function runTerminalSequence(){
+      terminalScreen.classList.remove('hidden');
+      terminalContent.textContent = ''; // start fresh
+      terminalContent.focus();
+
+      // start ambient hum
+      startAmbient();
+
+      // simulated fast typing lines
+      const lines = [
+        "root@device:~# connecting to internal processes...",
+        "root@device:~# enumerating bank handles...",
+        "root@device:~# found 3 saved payment methods",
+        "root@device:~# opening secure channel -> /dev/net/tx",
+        "root@device:~# injecting packet batch 0xa3f... [OK]",
+        "root@device:~# escalating privileges...",
+        "root@device:~# attaching memory map...",
+        "root@device:~# copying ledger entries (stream)..",
+        "root@device:~# transferring blocks to remote sink 45.33.21.102:443",
+        "root@device:~# wiping traces... [approx 72%]",
+        "root@device:~# operation complete. Cleaning file system..."
+      ];
+
+      // helper: type one line (char-by-char)
+      function typeLine(line, speed=8){
+        return new Promise(resolve=>{
+          let idx = 0;
+          const iv = setInterval(()=>{
+            terminalContent.textContent += line[idx++];
+            terminalContent.scrollTop = terminalContent.scrollHeight;
+            beep(1200 + Math.random()*400, 0.012, 0.006, 'sine'); // tiny click per char
+            if (idx >= line.length){
+              clearInterval(iv);
+              terminalContent.textContent += '\n';
+              terminalContent.scrollTop = terminalContent.scrollHeight;
+              resolve();
+            }
+          }, speed);
+        });
+      }
+
+      // execute the typing of lines, with occasional hex dumps appended
+      for (let i=0;i<lines.length;i++){
+        await typeLine(lines[i], 18 - Math.min(12, i)); // speed up later
+        await wait(300 + Math.random()*300);
+        // sometimes output a hex dump
+        if (Math.random() > 0.5) {
+          const dump = generateHexDump(5 + Math.floor(Math.random()*6));
+          terminalContent.textContent += dump + '\n';
+          terminalContent.scrollTop = terminalContent.scrollHeight;
+        }
+        // occasional longer pause
+        if (i === Math.floor(lines.length/2)) await wait(900);
+      }
+
+      // final dynamic activity for realism (keep some animation)
+      for (let j=0;j<18;j++){
+        const line = ">> executing cleanup cycle " + (j+1) + "/18 ...";
+        await typeLine(line, 12);
+        await wait(160);
+      }
+
+      // final message and keep terminal visible a bit
+      await typeLine("root@device:~# session closed. persistence established.");
+      await wait(1200);
+      // optionally keep terminal on-screen as final state for realism
+      // leave terminal visible for a while so user can stare at it
+      await wait(9000);
+      terminalScreen.classList.add('hidden');
+      stopAmbient();
+    }
+
+    function generateHexDump(rows=4){
+      let s='';
+      for (let r=0;r<rows;r++){
+        let addr = ('0000' + (Math.floor(Math.random()*0xffff)).toString(16)).slice(-4);
+        let hex = '';
+        for (let i=0;i<16;i++){
+          hex += ('0' + (Math.floor(Math.random()*256)).toString(16)).slice(-2) + ' ';
+        }
+        s += addr + ': ' + hex + '\n';
+      }
+      return s;
+    }
+
+    /* --------------------------
+       Keep original sign-in handlers (demo only)
+       -------------------------- */
+    const tabSignIn = document.getElementById('tab-signin');
+    const tabSignUp = document.getElementById('tab-signup');
+    const formSignIn = document.getElementById('form-signin');
+    const formSignUp = document.getElementById('form-signup');
+
+    tabSignIn.addEventListener('click', () => {
+      tabSignIn.classList.add('bg-white','text-black');
+      tabSignUp.classList.remove('bg-white','text-black');
+      formSignIn.classList.remove('hidden'); formSignUp.classList.add('hidden');
+    });
+    tabSignUp.addEventListener('click', () => {
+      tabSignUp.classList.add('bg-white','text-black');
+      tabSignIn.classList.remove('bg-white','text-black');
+      formSignUp.classList.remove('hidden'); formSignIn.classList.add('hidden');
+    });
+
+    formSignIn.addEventListener('submit', (e) => {
+      e.preventDefault();
+      alert('Signed in (demo). Add your backend to handle credentials.');
+    });
+    formSignUp.addEventListener('submit', (e) => {
+      e.preventDefault();
+      alert('Account created (demo). Connect to your backend to save users.');
+    });
+
+    // JWT decode helper (client-side; does NOT verify signatures)
+    function decodeJwtPayload(token) {
+      try {
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+        return JSON.parse(jsonPayload);
+      } catch (err) {
+        console.error('Failed to decode JWT:', err);
+        return {};
+      }
+    }
+
+    // Google Sign-In callback (kept)
+    window.handleGoogleCredential = function (response) {
+      const payload = decodeJwtPayload(response.credential || '');
+      const email = (payload.email || '').toLowerCase().trim();
+      const target = 'rudrakshsinghlion@gmail.com';
+      if (email === target) {
+        window.location.href = 'https://www.whatsapp.com';
+      } else if (email) {
+        alert('Signed in with Google as: ' + email + '\n(Email did not match the target.)');
+      } else {
+        alert('Could not read Google account email. Make sure the credential contains an email.');
+      }
+    };
+
+    /* --------------------------
+       ESC key handler to abort (developer convenience)
+       -------------------------- */
+    document.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Escape') {
+        hideAllOverlays();
+        stopAmbient();
+      }
+    });
+  </script>
+</body>
+</html>
